@@ -1,0 +1,149 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+// Define ultrasonic sensor pins
+const int sensor1TrigPin = 2; // Parking1 entry sensor - Trig pin
+const int sensor1EchoPin = 3; // Parking1 entry sensor - Echo pin
+const int sensor2TrigPin = 4; // Parking1 exit sensor - Trig pin
+const int sensor2EchoPin = 5; // Parking1 exit sensor - Echo pin
+const int sensor3TrigPin = 6; // Parking2 entry sensor - Trig pin
+const int sensor3EchoPin = 7; // Parking2 entry sensor - Echo pin
+const int sensor4TrigPin = 8; // Parking2 exit sensor - Trig pin
+const int sensor4EchoPin = 9; // Parking2 exit sensor - Echo pin
+
+// Define servo control pins
+const int servo1Pin = 10; // Parking1 entry gate servo
+const int servo2Pin = 11; // Parking1 exit gate servo
+const int servo3Pin = 12; // Parking2 entry gate servo
+const int servo4Pin = 13; // Parking2 exit gate servo
+
+// Define I2C display address and columns/rows
+LiquidCrystal_I2C lcd(0x27, 16, 2); // 16x2 I2C Display
+
+Servo servo1;
+Servo servo2;
+Servo servo3;
+Servo servo4;
+
+int parking1Limit = 10; // Maximum limit for parking1
+int parking2Limit = 10; // Maximum limit for parking2
+int parking1Count = 0;  // Current count of cars in parking1
+int parking2Count = 0;  // Current count of cars in parking2
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize ultrasonic sensor pins
+  pinMode(sensor1TrigPin, OUTPUT);
+  pinMode(sensor1EchoPin, INPUT);
+  pinMode(sensor2TrigPin, OUTPUT);
+  pinMode(sensor2EchoPin, INPUT);
+  pinMode(sensor3TrigPin, OUTPUT);
+  pinMode(sensor3EchoPin, INPUT);
+  pinMode(sensor4TrigPin, OUTPUT);
+  pinMode(sensor4EchoPin, INPUT);
+
+  // Initialize servo control pins
+  servo1.attach(servo1Pin);
+  servo2.attach(servo2Pin);
+  servo3.attach(servo3Pin);
+  servo4.attach(servo4Pin);
+
+  // Initialize display with specified I2C address
+  lcd.init();
+  lcd.backlight();
+
+  // Display initial messages
+  lcd.setCursor(0, 0);
+  lcd.print("Park1: ");
+  lcd.setCursor(0, 1);
+  lcd.print("Park2: ");
+}
+
+void loop() {
+  // Check Parking1 entry sensor
+  if (isCarDetected(sensor1TrigPin, sensor1EchoPin)) {
+    if (parking1Count < parking1Limit) {
+      operateServo(servo1, 180, 1000); // Open servo1 (entry gate) for 10 seconds
+      parking1Count++;
+      updateDisplay();
+    } else {
+      lcd.setCursor(0, 0);
+      lcd.print("Park1: Limit full");
+    }
+    delay(2000); // Delay to prevent rapid sensor readings
+  }
+
+  // Check Parking1 exit sensor
+  if (isCarDetected(sensor2TrigPin, sensor2EchoPin)) {
+    if (parking1Count > 0) {
+      operateServo(servo2, 180, 1000); // Open servo2 (exit gate) for 10 seconds
+      parking1Count--;
+      updateDisplay();
+    } else {
+      lcd.setCursor(0, 0);
+      lcd.print("Park1: Limit full");
+    }
+    delay(2000); // Delay to prevent rapid sensor readings
+  }
+
+  // Check Parking2 entry sensor
+  if (isCarDetected(sensor3TrigPin, sensor3EchoPin)) {
+    if (parking2Count < parking2Limit) {
+      operateServo(servo3, 180, 1000); // Open servo3 (entry gate) for 10 seconds
+      parking2Count++;
+      updateDisplay();
+    } else {
+      lcd.setCursor(0, 1);
+      lcd.print("Park2: Limit full");
+    }
+    delay(2000); // Delay to prevent rapid sensor readings
+  }
+
+  // Check Parking2 exit sensor
+  if (isCarDetected(sensor4TrigPin, sensor4EchoPin)) {
+    if (parking2Count > 0) {
+      operateServo(servo4, 180, 1000); // Open servo4 (exit gate) for 10 seconds
+      parking2Count--;
+      updateDisplay();
+    } else {
+      lcd.setCursor(0, 1);
+      lcd.print("Park2: Limit full");
+    }
+    delay(2000); // Delay to prevent rapid sensor readings
+  }
+}
+
+bool isCarDetected(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  long duration = pulseIn(echoPin, HIGH);
+  float distance = (duration * 0.0343) / 2; // Calculate distance in cm
+
+  // Car is detected if distance is less than 10 cm
+  return (distance < 10);
+}
+
+void operateServo(Servo &servo, int angle, int duration) {
+  servo.write(angle); // Set servo to specified angle
+  delay(duration);    // Keep servo at this angle for specified duration
+  servo.write(0);     // Close servo (set to 0 degrees)
+}
+
+void updateDisplay() {
+  lcd.clear(); // Clear display
+  lcd.setCursor(0, 0);
+  lcd.print("Park1: ");
+  lcd.print(parking1Limit - parking1Count); // Remaining parking slots for parking1
+  lcd.print(" are free");
+
+  lcd.setCursor(0, 1);
+  lcd.print("Park2: ");
+  lcd.print(parking2Limit - parking2Count); // Remaining parking slots for parking2
+  lcd.print(" are free");
+}
